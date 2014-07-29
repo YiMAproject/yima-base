@@ -23,11 +23,11 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Table structure for table `Application_dms`
+-- Table structure for table `yimabase_dms`
 --
 
-DROP TABLE IF EXISTS `Application_dms`;
-CREATE TABLE IF NOT EXISTS `Application_dms` (
+DROP TABLE IF EXISTS `yimabase_dms`;
+CREATE TABLE IF NOT EXISTS `yimabase_dms` (
   `id` int(10) NOT NULL AUTO_INCREMENT,
   `model` varchar(255) NOT NULL,
   `foreign_key` int(10) NOT NULL,

@@ -6,14 +6,14 @@ FROM (
 SELECT `mt` . * , (
 
 SELECT `dms`.`content`
-FROM `application_dms` AS `dms`
+FROM `yimabase_dms` AS `dms`
 WHERE `dms`.`model` = 'Application\\Model\\TableGateway\\Sample'
 AND `dms`.`foreign_key` = `mt`.`sampletable_id`
 AND `dms`.`field` = 'note'
 ) AS `note` , (
 
 SELECT `dms`.`content`
-FROM `Application_dms` AS `dms`
+FROM `yimabase_dms` AS `dms`
 WHERE `dms`.`model` = 'Application\\Model\\TableGateway\\Sample'
 AND `dms`.`foreign_key` = `mt`.`sampletable_id`
 AND `dms`.`field` = 'image'
@@ -25,7 +25,6 @@ WHERE `bt`.`sampletable_id` =1
 
 namespace yimaBase\Db\TableGateway\Feature;
 
-use Traversable;
 use yimaBase\Db\TableGateway\Dms as DmsTable;
 use Zend\Db\TableGateway\Feature\AbstractFeature;
 use Zend\Db\TableGateway\Exception;
@@ -33,21 +32,21 @@ use Zend\Db\TableGateway\AbstractTableGateway;
 use Zend\Db\Metadata\Metadata;
 use Zend\Db\Sql\Expression;
 use yimaBase\Db\TableGateway\Provider\PrimaryKeyProviderInterface;
-use Zend\Stdlib\ArrayUtils;
+use Zend\Db\TableGateway\TableGateway;
 
 class DmsFeature extends AbstractFeature
 {
 	/**
-	 * Field haaie dms ke baayad dar jadval e dms zakhire shavand
+	 * This is DMS Extra Columns Fields
 	 *
 	 * @var array | string
 	 */
-	protected $dmsFields;
+	protected $dmsColumns = array();
 	
 	/**
-	 * Service e table-i- ke dms field haa ro negah midaarad
+	 * DMS TableGateway
 	 *
-	 * @var \yimaBase\Db\TableGateway\AbstractTableGateway
+	 * @var AbstractTableGateway
 	 */
 	protected $dmsTable;
 	
@@ -57,112 +56,110 @@ class DmsFeature extends AbstractFeature
 	 * @var array
 	 */
 	protected $storedValues;
-	
-	public function __construct($dmsFields = array() , $dmsTable = null)
+
+    /**
+     * Construct
+     *
+     * @param array $dmsFields
+     *
+     * @param null|TableGateway $dmsTable Dms TableGateway
+     */
+    public function __construct($dmsFields = array() , $dmsTable = null)
 	{
-		if (! empty($dmsFields) ) {
-			$this->setDmsFields($dmsFields);
+		if (!empty($dmsFields)) {
+			$this->setDmsColumns($dmsFields);
 		}
 	
-		if ($dmsTable == null) {
-			$dmsTable = new DmsTable;
+		if ($dmsTable) {
+            $this->setDmsTable($dmsTable);
 		}
-	
-		$this->setDmsTable($dmsTable);
 	}
 	
 	/**
-	 * Table-i- ke translation haaa raa negah midaarad
+	 * Set DMS TableGateway
+     * : This Table Contains Content Of DMS Fields Data
 	 *
-	 * @param string | AbstractTableGateway $tableGateway
+	 * @param AbstractTableGateway $tableGateway TableGateway
+     *
+     * @return $this
 	 */
-	public function setDmsTable($tableGateway)
+	public function setDmsTable(AbstractTableGateway $tableGateway)
 	{
-		if (is_string($tableGateway) && class_exists($tableGateway)) {
-			$tableGateway = new $tableGateway();  
-		}
-		
-		if (!$tableGateway instanceof AbstractTableGateway) {
-			throw new Exception\RuntimeException(sprintf(
-				'Dms Table must instance of "AbstractTableGateway" but "%s" given.'
-			,(is_object($tableGateway)) ? get_class($tableGateway) : gettype($tableGateway)));
-		}
-		
 		/*
-		 * If table dont have adapter yet
+		 * If table don`t has an adapter yet
 		 */
-		if (! $tableGateway->getAdapter() && $tableGateway instanceof \Zend\Db\Adapter\AdapterAwareInterface) {
+		if (!$tableGateway->getAdapter()
+            && $tableGateway instanceof \Zend\Db\Adapter\AdapterAwareInterface
+        ) {
 			$tableGateway->setAdapter($this->tableGateway->adapter); 
 		}
 		
 		$this->dmsTable = $tableGateway;
+
 		return $this;
 	}
-	
-	public function getDmsTable()
+
+    /**
+     * Get DMS TableGateway
+     *
+     * @return AbstractTableGateway
+     */
+    public function getDmsTable()
 	{
+        if (!$this->dmsTable) {
+            $this->setDmsTable(new DmsTable);
+        }
+
 		return $this->dmsTable;
 	}
 	
-	
 	/**
-	 * Field haaee az in table ke baayad dar jadval e dms baashand
+	 * Set Extra Table Columns (DMS Fields)
 	 *
-	 * @return array
+	 * @param array $fields DMS Fields
+     *
+     * @return $this
 	 */
-	public function getDmsFields()
+	public function setDmsColumns(array $fields)
 	{
-		$fields = $this->dmsFields;
-	
-		if (is_string($fields)) {
-			$fields = (array) $fields;
-		} elseif ($fields == null) {
-			$fields = array();
-		}
-	
-		return $fields;
-	}
-	
-	/**
-	 * Field haaee ro ke baayad dms baashand ra be class moa`refi mikonad
-	 *
-	 * @param string | array $fields
-	 */
-	public function setDmsFields($fields)
-	{
-		if (is_string($fields)) {
-			$fields = (array) $fields;  
-		}
-		
-		if ($fields instanceof Traversable) {
-			$fields = ArrayUtils::iteratorToArray($fields);
-		}
-		
-		if (! is_array($fields) ) {
-			throw new Exception\InvalidArgumentException(sprintf(
-				'%s expects an array, or object implementing Traversable or Array; received "%s"',
-				__FUNCTION__,
-				(is_object($fields) ? get_class($fields) : gettype($fields))
-			));
-		}
-		
-		$this->dmsFields = $fields;
+		$this->dmsColumns = $fields;
+
 		return $this;
 	}
+
+    /**
+     * Get Table Extra Columns(DMS Fields)
+     *
+     * @return array
+     */
+    public function getDmsColumns()
+    {
+        return $this->dmsColumns;
+    }
 	
 	/**
 	 * Add Dms Field(s) to current field(s)
 	 *
-	 * @param string | array $field
+	 * @param string|array $field Field string or Fields Array
+     *
+     * @return $this
 	 */
 	public function addDmsField($field)
 	{
-		$currFields = $this->getDmsFields();
-	
-		$this->setDmsFields($field);
-		$extraField = $this->getDmsFields();
-	
-		$this->setDmsFields(array_merge($extraField,$currFields));
+        if (is_string($field)) {
+            $field = array($field);
+        }
+
+        if (!is_array($field)) {
+            throw new Exception\InvalidArgumentException(sprintf(
+                '%s expects an array, or object implementing Traversable or Array; received "%s"',
+                __FUNCTION__,
+                (is_object($field) ? get_class($field) : gettype($field))
+            ));
+        }
+
+		$currFields = $this->getDmsColumns();
+		$this->setDmsColumns(array_merge($currFields, $field));
 	
 		return $this;
 	}
@@ -174,33 +171,32 @@ class DmsFeature extends AbstractFeature
 		/*
 		 SELECT `sampletable` . * , `dms__image`.`content` AS `image`
  		  FROM `sampletable`
-		 LEFT JOIN `application_dms` AS `dms__image`
+		 LEFT JOIN `yimabase_dms` AS `dms__image`
  		  ON dms__image.foreign_key = `sampletable`.`sampletable_id`
       		 AND dms__image.model = 'application\\Model\\TableGateway\\Sample'
      		 AND dms__image.field = 'image'
 		*/
 		
-		/* agar aanche az column haaie table select mishavad
-		 * jozve dms field haa nabood ehtiaaj nist ke preSelect 
-		 * ejraa shavad.										-----------------V
-		 */ 
+		// Looking at SELECT requested COLUMNS for any DMS Columns ... {
+        #  SELECT [column] FROM ...
 		$rawState  = $select->getRawState();
 		$columns   = $rawState['columns'];
 		$vColumns  = array_values($columns);
-		$dmsFields = $this->getDmsFields();
+		$dmsFields = $this->getDmsColumns();
 		
 		if (! array_intersect($vColumns, $dmsFields) && !in_array('*',$vColumns) ) {
+            // We don't have any DMS columns on SELECT expression
 			return;
 		}
-		/* -------------------------------------------------------------------- */
-		
-		$tableGateway = $this->tableGateway;
+        // ... }
+
+		$tableGateway = $this->tableGateway; // Base TableGateway That This Feature Bind to
 		$tableName    = $tableGateway->getTable();
 		$tableClass   = get_class($tableGateway);
-		
+
 		$tablePrimKey = $this->getPrimaryKey($tableGateway); 
 
-		foreach ($this->getDmsFields() as $tf) {
+		foreach ($this->getDmsColumns() as $tf) {
 			if ( ($key = array_search($tf,$columns)) !== false ) {
 				// we have dms column in select and must remove from SELECT 'dms_column'
 				unset($columns[$key]);
@@ -270,7 +266,7 @@ class DmsFeature extends AbstractFeature
 		$rawData    = $insert->getRawState();
 		$columns    = $rawData['columns'];
 		$values     = $rawData['values'];
-		$dmsColumns = $this->getDmsFields();
+		$dmsColumns = $this->getDmsColumns();
 
 		$storedVal = array();// dms column must insert on postInsert
 		foreach ($columns as $key=>$cl) {
@@ -309,7 +305,7 @@ class DmsFeature extends AbstractFeature
 		$rawState  = $update->getRawState();
 		$dataset   = $rawState['set'];
 		
-		$tblColumns = array_diff_key($dataset, array_flip($this->getDmsFields()));
+		$tblColumns = array_diff_key($dataset, array_flip($this->getDmsColumns()));
 		
 		// store dmsColumns for postUpdate
 		$storedData           = array_diff_key($dataset, $tblColumns);
@@ -474,22 +470,23 @@ class DmsFeature extends AbstractFeature
 	{
 		return $this->storedValues;
 	}
-	
-	protected function getPrimaryKey($tableGateway)
+
+    /**
+     * Get Primary Key Of Table
+     *
+     * @param $tableGateway
+     * @return \string[]
+     * @throws \Zend\Db\TableGateway\Exception\RuntimeException
+     */
+    protected function getPrimaryKey($tableGateway)
 	{
 		if ($tableGateway instanceof PrimaryKeyProviderInterface) {
-			$primaryKey = $tableGateway->getPrimaryKey(); 
-		}
-		if ($primaryKey) {
-			return $primaryKey;
+			return $tableGateway->getPrimaryKey();
 		}
 
-		// try to catch primary key from metada ...................................................................
+		// try to catch primary key from metada
 		
 		$metadata = new Metadata($tableGateway->adapter);
-		
-		// localize variable for brevity
-		$t = $tableGateway;
 		
 		// process primary key
 		$pkc = null;
