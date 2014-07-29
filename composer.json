@@ -1,0 +1,29 @@
+{
+    "name": "rayamedia/yima-base",
+    "description": "Common Libraries And Features.",
+    "keywords": [
+        "yima",
+        "raya media"
+    ],
+    "authors": [
+        {
+            "name": "Payam Naderi",
+            "email": "naderi.payam@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.3"
+    },
+    "minimum-stability": "dev",
+    "autoload" : {
+        "psr-0" : {
+            "yimaBase\\" : "src/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "http://packages.raya-media.com/"
+        }
+    ]
+}
