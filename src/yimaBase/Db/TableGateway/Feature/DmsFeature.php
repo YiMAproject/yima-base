@@ -1,31 +1,11 @@
 <?php
-/*
- SELECT *
-FROM (
-
-SELECT `mt` . * , (
-
-SELECT `dms`.`content`
-FROM `yimabase_dms` AS `dms`
-WHERE `dms`.`model` = 'Application\\Model\\TableGateway\\Sample'
-AND `dms`.`foreign_key` = `mt`.`sampletable_id`
-AND `dms`.`field` = 'note'
-) AS `note` , (
-
-SELECT `dms`.`content`
-FROM `yimabase_dms` AS `dms`
-WHERE `dms`.`model` = 'Application\\Model\\TableGateway\\Sample'
-AND `dms`.`foreign_key` = `mt`.`sampletable_id`
-AND `dms`.`field` = 'image'
-) AS `image`
-FROM `sampletable` AS `mt`
-) AS `bt`
-WHERE `bt`.`sampletable_id` =1
- */
-
 namespace yimaBase\Db\TableGateway\Feature;
 
 use yimaBase\Db\TableGateway\Dms as DmsTable;
+use Zend\Db\Adapter\Driver\ResultInterface;
+use Zend\Db\Adapter\Driver\StatementInterface;
+use Zend\Db\ResultSet\ResultSetInterface;
+use Zend\Db\Sql\Select;
 use Zend\Db\TableGateway\Feature\AbstractFeature;
 use Zend\Db\TableGateway\Exception;
 use Zend\Db\TableGateway\AbstractTableGateway;
@@ -166,15 +146,65 @@ class DmsFeature extends AbstractFeature
 	
 	// ............................................................................................................
 	
-	public function preSelect($select)
+	public function preSelect(Select $select)
 	{
+        if (!$this->getDmsColumns()) {
+            // we have not any predefined dms columns
+
+            /*
+            SELECT mtp . * , dms.field as dms__field, dms.content as dms__content
+            FROM  `typopages_page` AS mtp
+            LEFT JOIN  `yimabase_dms` AS dms ON dms.foreign_key = mtp.page_id
+            */
+            $joinTable = $this->getDmsTable()->table;// get name of translation table
+
+            $sname = 'dms';
+            $tableGateway = $this->tableGateway;
+            $tableName    = $tableGateway->getTable();
+            $tablePrimKey = $this->getPrimaryKey($tableGateway);
+
+            $expression = new Expression(
+                "$sname.foreign_key = ?.?"
+                ,array(
+                    $tableName, $tablePrimKey,
+                )
+                ,array(
+                    Expression::TYPE_IDENTIFIER,
+                    Expression::TYPE_IDENTIFIER
+                )
+            );
+
+            $select->join(
+                array($sname => $joinTable)//join table name
+                ,$expression //conditions
+                ,array(
+                    'dms__content' => 'content',
+                    'dms__field'   => 'field',
+                )
+                ,'left'
+            );
+
+            $rawState  = $select->getRawState();
+            $columns   = $rawState['columns'];
+            if (!in_array('*', $columns) && !in_array($tablePrimKey, $columns) ) {
+                // We need primary key for postSelect
+                array_unshift($columns, $tablePrimKey);
+            }
+            // used in post select
+            $this->setStoredValues(array('pk' => $tablePrimKey, 'columns' => $rawState['columns']));
+
+            $select->columns($columns);
+
+            return;
+        }
+
 		/*
-		 SELECT `sampletable` . * , `dms__image`.`content` AS `image`
- 		  FROM `sampletable`
+		 SELECT `sampletable`.*, `dms__image`.`content` AS `image`
+ 		 FROM `sampletable`
 		 LEFT JOIN `yimabase_dms` AS `dms__image`
  		  ON dms__image.foreign_key = `sampletable`.`sampletable_id`
-      		 AND dms__image.model = 'application\\Model\\TableGateway\\Sample'
-     		 AND dms__image.field = 'image'
+      		 AND dms__image.model   = 'application\\Model\\TableGateway\\Sample'
+     		 AND dms__image.field   = 'image'
 		*/
 		
 		// Looking at SELECT requested COLUMNS for any DMS Columns ... {
@@ -196,28 +226,27 @@ class DmsFeature extends AbstractFeature
 
 		$tablePrimKey = $this->getPrimaryKey($tableGateway); 
 
-		foreach ($this->getDmsColumns() as $tf) {
-			if ( ($key = array_search($tf,$columns)) !== false ) {
+		foreach ($this->getDmsColumns() as $dc) {
+			if (($key = array_search($dc, $columns)) !== false ) {
 				// we have dms column in select and must remove from SELECT 'dms_column'
 				unset($columns[$key]);
-			} elseif (!in_array('*',$vColumns)) {
+			} elseif (!in_array('*', $vColumns)) {
 				// we don't need any other dms fields, cause not in SELECT
 				continue;
 			}
 			
-			$name = 'Dms__'.$tf;
-			// get name of translation table
-			$joinTable = $this->getDmsTable()->table;
-			
+			$name = 'Dms__'.$dc;
+
+			$joinTable = $this->getDmsTable()->table;// get name of translation table
 			$expression = new Expression("
 				$name.foreign_key = ?.?
 				AND $name.model = ?
 				AND $name.field = ?
 				"
 				,array(
-					$tableName,$tablePrimKey,
+					$tableName, $tablePrimKey,
 					$tableClass,
-					$tf
+					$dc
 				)
 				,array(
 					Expression::TYPE_IDENTIFIER,
@@ -226,15 +255,71 @@ class DmsFeature extends AbstractFeature
 			);
 			
 			$select->join(
-				array($name => $joinTable),//join table name
-				$expression //conditions
-				,array($tf => 'content'), // this way we dont need postSelect replacement
-				'left'
+				array($name => $joinTable)//join table name
+				,$expression //conditions
+				,array($dc => 'content') // this way we dont need postSelect replacement
+				,'left'
 			);
 		}
 		
 		$select->columns($columns);
 	}
+
+    /**
+     *
+     * @param StatementInterface $statement
+     * @param ResultInterface $result
+     * @param ResultSetInterface $resultSet
+     */
+    public function postSelect(StatementInterface $statement, ResultInterface $result, ResultSetInterface $resultSet)
+    {
+        if ($this->getDmsColumns()) {
+            // We have used the query with presented Predefined DMS Columns
+            // Nothing to do
+            return;
+        }
+
+        $result = $resultSet->toArray();
+
+        $storedValues = $this->getStoredValues();
+        $pkColumn = $storedValues['pk'];
+
+        $dmsResult = array();
+        foreach($result as $rc) {
+            $pk = $rc[$pkColumn]; // get pk column value
+            foreach ($rc as $c => $v) {
+                // iterate trough result containing duplicated rows because of join over dms values
+                if ($c == 'dms__content' || $c == 'dms__field')
+                    continue; // dms content must set as column
+
+                if ($c == $pkColumn
+                    && (!in_array($pkColumn, $storedValues['columns'])
+                        && !in_array('*', $storedValues['columns'])
+                    )
+                ) {
+                    continue;
+                }
+
+                $dmsResult[$pk][$c] = $v;
+            }
+
+            if (isset($rc['dms__content']) && isset($rc['dms__field'])) {
+                if (in_array($rc['dms__field'], $storedValues['columns'])
+                    || in_array('*', $storedValues['columns'])
+                )
+                {
+                    $column = $rc['dms__field'];
+                    $value  = $rc['dms__content'];
+                    $dmsResult[$pk][$column] = $value;
+                }
+
+                unset($rc['dms__field']);
+                unset($rc['dms__content']);
+            }
+        }
+
+        $resultSet->initialize($dmsResult);
+    }
 	
 	/**
 	 * Tammai e column haaii ke be insert daade shode raa jostejoo karde
