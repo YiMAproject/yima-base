@@ -279,13 +279,11 @@ class DmsFeature extends AbstractFeature
             return;
         }
 
-        $result = $resultSet->toArray();
-
         $storedValues = $this->getStoredValues();
         $pkColumn = $storedValues['pk'];
 
         $dmsResult = array();
-        foreach($result as $rc) {
+        foreach($resultSet as $rc) {
             $pk = $rc[$pkColumn]; // get pk column value
             foreach ($rc as $c => $v) {
                 // iterate trough result containing duplicated rows because of join over dms values
