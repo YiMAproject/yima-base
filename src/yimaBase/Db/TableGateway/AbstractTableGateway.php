@@ -28,14 +28,17 @@ abstract class AbstractTableGateway extends ZendTableAbstract implements
         // inject global db adapter into table from Feature, global adapter set via Application
     	$this->featureSet = new Feature\FeatureSet(
             array(
-            new Feature\GlobalAdapterFeature,
+                new Feature\GlobalAdapterFeature,
     	    )
         );
     
     	// init Table, adding features, .....
     	$this->init();
-    	
+
+        // all features tableGateway reset to $this from initialize()
     	$this->initialize();
+
+        $this->postInit();
     }
     
     /**
@@ -44,6 +47,12 @@ abstract class AbstractTableGateway extends ZendTableAbstract implements
      * AddFeatures and .....
      */
      public function init() {}
+
+    /**
+     * Post Init
+     *
+     */
+    public function postInit() {}
     
     /**
      * We can call featureSet methods
