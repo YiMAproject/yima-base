@@ -65,9 +65,7 @@ class DmsFeature extends AbstractFeature
 	 */
 	public function setDmsTable(AbstractTableGateway $tableGateway)
 	{
-		/*
-		 * If table don`t has an adapter yet
-		 */
+		// If table don`t has an adapter yet
 		if (!$tableGateway->getAdapter()
             && $tableGateway instanceof \Zend\Db\Adapter\AdapterAwareInterface
         ) {
@@ -224,7 +222,7 @@ class DmsFeature extends AbstractFeature
 		$tableName    = $tableGateway->getTable();
 		$tableClass   = get_class($tableGateway);
 
-		$tablePrimKey = $this->getPrimaryKey($tableGateway); 
+		$tablePrimKey = $this->getPrimaryKey($tableGateway);
 
 		foreach ($this->getDmsColumns() as $dc) {
 			if (($key = array_search($dc, $columns)) !== false ) {
