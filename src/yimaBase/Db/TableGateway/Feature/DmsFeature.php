@@ -115,33 +115,6 @@ class DmsFeature extends AbstractFeature
         return $this->dmsColumns;
     }
 	
-	/**
-	 * Add Dms Field(s) to current field(s)
-	 *
-	 * @param string|array $field Field string or Fields Array
-     *
-     * @return $this
-	 */
-	public function addDmsField($field)
-	{
-        if (is_string($field)) {
-            $field = array($field);
-        }
-
-        if (!is_array($field)) {
-            throw new Exception\InvalidArgumentException(sprintf(
-                '%s expects an array, or object implementing Traversable or Array; received "%s"',
-                __FUNCTION__,
-                (is_object($field) ? get_class($field) : gettype($field))
-            ));
-        }
-
-		$currFields = $this->getDmsColumns();
-		$this->setDmsColumns(array_merge($currFields, $field));
-	
-		return $this;
-	}
-	
 	// ............................................................................................................
 	
 	public function preSelect(Select $select)
@@ -345,21 +318,30 @@ class DmsFeature extends AbstractFeature
 		 * va dar postInsert aanhaa raa be table translate ezaafe mikonim
 		 */
 		$rawData    = $insert->getRawState();
-		$columns    = $rawData['columns'];
-		$values     = $rawData['values'];
-		$dmsColumns = $this->getDmsColumns();
+		$insertCols = $rawData['columns'];
+		$insertVals = $rawData['values'];
+
+        $arrayDiff  = array_diff($insertCols, $this->tableGateway->getColumns());
+		if ($arrayDiff && $arrayDiff !== $insertCols) {
+            if (!$this->getDmsColumns()) {
+                // we set extra fields as dms columns if no any dms was set
+                // and insert has a column name more than real table columns
+                $this->setDmsColumns($arrayDiff);
+            }
+        }
+        $dmsColumns = $this->getDmsColumns();
 
 		$storedVal = array();// dms column must insert on postInsert
-		foreach ($columns as $key=>$cl) {
+		foreach ($insertCols as $key=>$cl) {
 			if (in_array($cl,$dmsColumns)) {
-				$storedVal[$cl] = $values[$key];
-				unset($columns[$key]);
-				unset($values[$key]);
+				$storedVal[$cl] = $insertVals[$key];
+				unset($insertCols[$key]);
+				unset($insertVals[$key]);
 			}
 		}
 		
-		$insert->values($values,'merge');
-		$insert->columns($columns);
+		$insert->values($insertVals,'merge');
+		$insert->columns($insertCols);
 		
 		$this->setStoredValues($storedVal);
 	}
