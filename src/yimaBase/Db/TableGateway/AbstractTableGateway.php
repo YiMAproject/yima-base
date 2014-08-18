@@ -1,6 +1,8 @@
 <?php
 namespace yimaBase\Db\TableGateway;
 
+use Zend\Db\ResultSet\ResultSet;
+use Zend\Db\Sql\Select;
 use Zend\Db\TableGateway\AbstractTableGateway as ZendTableAbstract;
 use Zend\Db\Adapter\AdapterAwareInterface;
 use Zend\Db\TableGateway\Feature;
@@ -84,6 +86,45 @@ abstract class AbstractTableGateway extends ZendTableAbstract implements
     	}
     	
     	return parent::__call($method, $args);
+    }
+
+    // .............................................................................................................
+
+    /**
+     * We don't want use default table columns as default select state
+     *
+     * @param Select $select
+     * @return ResultSet
+     * @throws \RuntimeException
+     */
+    protected function executeSelect(Select $select)
+    {
+        $selectState = $select->getRawState();
+        if ($selectState['table'] != $this->table) {
+            throw new \RuntimeException('The table name of the provided select object must match that of the table');
+        }
+
+        // We don't want use default table columns as default select columns state
+        /*if ($selectState['columns'] == array(Select::SQL_STAR)
+            && $this->columns !== array()) {
+            $select->columns($this->columns);
+        }*/
+
+        // apply preSelect features
+        $this->featureSet->apply('preSelect', array($select));
+
+        // prepare and execute
+        $statement = $this->sql->prepareStatementForSqlObject($select);
+        $result = $statement->execute();
+
+        // build result set
+        $resultSet = clone $this->resultSetPrototype;
+        $resultSet->initialize($result);
+
+        // apply postSelect features
+        $this->featureSet->apply('postSelect', array($statement, $result, $resultSet));
+
+        return $resultSet;
     }
     
     // Implemented Features .........................................................................................

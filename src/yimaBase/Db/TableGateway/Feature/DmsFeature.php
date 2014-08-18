@@ -127,7 +127,7 @@ class DmsFeature extends AbstractFeature
             FROM  `typopages_page` AS mtp
             LEFT JOIN  `yimabase_dms` AS dms ON dms.foreign_key = mtp.page_id
             */
-            $joinTable = $this->getDmsTable()->table;// get name of translation table
+            $joinTable = $this->getDmsTable()->table;// get name of dms table
 
             $sname = 'dms';
             $tableGateway = $this->tableGateway;
@@ -251,15 +251,17 @@ class DmsFeature extends AbstractFeature
         }
 
         $storedValues = $this->getStoredValues();
-        $pkColumn = $storedValues['pk'];
 
-        $dmsResult = array();
+        $pkColumn     = $storedValues['pk'];
+
+        $totalResultSet = array();
         foreach($resultSet as $rc) {
             $pk = $rc[$pkColumn]; // get pk column value
             foreach ($rc as $c => $v) {
                 // iterate trough result containing duplicated rows because of join over dms values
                 if ($c == 'dms__content' || $c == 'dms__field')
-                    continue; // dms content must set as column
+                    // dms virtual columns avoided and set as field->content
+                    continue;
 
                 if ($c == $pkColumn
                     && (!in_array($pkColumn, $storedValues['columns'])
@@ -269,7 +271,7 @@ class DmsFeature extends AbstractFeature
                     continue;
                 }
 
-                $dmsResult[$pk][$c] = $v;
+                $totalResultSet[$pk][$c] = $v;
             }
 
             if (isset($rc['dms__content']) && isset($rc['dms__field'])) {
@@ -279,7 +281,7 @@ class DmsFeature extends AbstractFeature
                 {
                     $column = $rc['dms__field'];
                     $value  = $rc['dms__content'];
-                    $dmsResult[$pk][$column] = $value;
+                    $totalResultSet[$pk][$column] = $value;
                 }
 
                 unset($rc['dms__field']);
@@ -287,7 +289,7 @@ class DmsFeature extends AbstractFeature
             }
         }
 
-        $resultSet->initialize($dmsResult);
+        $resultSet->initialize($totalResultSet);
     }
 	
 	/**
