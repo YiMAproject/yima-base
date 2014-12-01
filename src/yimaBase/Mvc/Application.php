@@ -66,6 +66,12 @@ class Application implements ApplicationInterface
      */
     protected $event;
 
+    // ...
+
+    protected $__setup_array_priority = array(
+        'service_manager_config',
+    );
+
     /**
      * Application is not instantiable by construct
      *
