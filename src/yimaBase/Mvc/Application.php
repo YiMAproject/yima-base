@@ -2,18 +2,24 @@
 namespace yimaBase\Mvc;
 
 use Poirot\Collection\Entity;
+use Poirot\Core\SetterSetup;
 use yimaBase\Mvc\Application\DefaultConfig;
 use Zend\EventManager\EventManager;
+use Zend\EventManager\ListenerAggregateInterface;
+use Zend\ModuleManager\ModuleManager;
 use Zend\Mvc\ApplicationInterface;
 use Zend\EventManager\EventManagerInterface;
 use Zend\ServiceManager\ServiceLocatorInterface;
 use Zend\ServiceManager\ServiceManager;
 use Zend\Http\Response;
 use Zend\ServiceManager\Config as ConfigureService;
-
+use Poirot\Core;
+use Zend\Stdlib\ResponseInterface;
 
 class Application implements ApplicationInterface
 {
+    use SetterSetup;
+
     /**
      * @var self Application Instance
      */
@@ -25,14 +31,30 @@ class Application implements ApplicationInterface
     protected $isInitialize;
 
     /**
-     * @var Entity Application Configuration
+     * Listeners Attached To EventManager
+     *
+     * @var array [ListenerAggregateInterface]
      */
-    protected $configuration;
+    protected $listeners = array();
+
+    // ...
 
     /**
      * @var ServiceLocatorInterface ServiceManager
      */
-    protected $servicemanager;
+    protected $sm;
+
+    /**
+     * @var array Default Service Manager Config
+     */
+    protected $def_sm_config = array();
+
+    // ...
+
+    /**
+     * @var Entity Application Configuration
+     */
+    protected $configuration;
 
     /**
      * @var EventManager
@@ -45,12 +67,13 @@ class Application implements ApplicationInterface
     protected $event;
 
     /**
-     * Application is not instantiable bu construct
+     * Application is not instantiable by construct
      *
+     * @param array $setterSetup Application Setter Factory
      */
-    final private function __construct(array $configuration)
+    final private function __construct(array $setterSetup)
     {
-        $this->configuration = new DefaultConfig($configuration);
+        $this->setupFromArray($setterSetup, true);
     }
 
     /**
@@ -72,6 +95,68 @@ class Application implements ApplicationInterface
     }
 
     /**
+     * Set Application Listeners
+     *
+     * Listeners can be:
+     * - object instance of AggregateListener
+     * - class name
+     * - registered service name
+     *
+     * @param array $listeners [ListenerAggregateInterface] $listeners
+     *
+     * @throws \Exception
+     * @return $this
+     */
+    public function setListeners(array $listeners)
+    {
+        if ($this->isInitialize())
+            throw new \Exception('The Listeners can\'t attached when Application is Initialized.');
+
+        foreach ($listeners as $listener) {
+            if (!is_object($listener)) {
+                if (class_exists($listener))
+                    $listener = new $listener();
+                else
+                    $listener = $this->getServiceManager()->get($listener);
+            }
+
+            if (!$listener instanceof ListenerAggregateInterface)
+                throw new \Exception(sprintf(
+                    'Listener must instance of "ListenerAggregateInterface" but "%s" given.'
+                    , is_object($listener) ? get_class($listener) : gettype($listener)
+                ));
+
+            $this->listeners[] = $listener;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set Service Manager Configs
+     *
+     * @param array $smConfig Service Manager Config
+     *
+     * @throws \Exception
+     * @return $this
+     */
+    public function setServiceManagerConfig(array $smConfig)
+    {
+        if ($this->sm instanceof ServiceLocatorInterface)
+            throw new \Exception(
+                'Service Config is used on first time instancing, '
+                .'Service Manager is configured for now you must use "getServiceManager()"'
+            );
+
+        $this->def_sm_config = Core\array_merge(
+            $this->def_sm_config
+            , $smConfig
+        );
+
+        return $this;
+    }
+
+    /**
      * Initialize Application
      *
      * ! Just Before Run() we must initialize app
@@ -86,15 +171,21 @@ class Application implements ApplicationInterface
         if ($this->isInitialize())
             return $this;
 
-        // Add Default Listeners To Events
-        $this->addDefaultListeners();
+        // Ai) Attach Listeners To Events ----------------------------------------\
+        $events = $this->getEventManager();
+        foreach ($this->listeners as $listener) {
+            // Attach Aggregate Listener
+            $events->attach($listener);
+        }
 
-        // Load Modules
+        // Bi) Load Modules ------------------------------------------------------\
         $serviceManager = $this->getServiceManager();
-        $serviceManager->get('ModuleManager')->loadModules();
+        /** @var ModuleManager $moduleManager */
+        $moduleManager  = $serviceManager->get('ModuleManager');
+        $moduleManager->loadModules();
 
-        // Bootstrap Application
-        $serviceManager->get('Application')->bootstrap();
+        // Ci) Bootstrap Application --------------------------------------------\
+        $this->bootstrap();
 
         $this->isInitialize = true;
 
@@ -157,17 +248,16 @@ class Application implements ApplicationInterface
      */
     public function getServiceManager()
     {
-        if (!$this->servicemanager || !$this->servicemanager instanceof ServiceLocatorInterface)
-            $this->servicemanager = new ServiceManager(
-                new ConfigureService(array_merge(
-                    $this->config()->get('service_manager')
-                    , [
-                        'services' => ['Application' => self::$instance]
-                    ]
-                ))
+        if (!$this->sm || !$this->sm instanceof ServiceLocatorInterface)
+            $this->sm = new ServiceManager
+            (
+                new ConfigureService($this->def_sm_config)
             );
 
-        return $this->servicemanager;
+        if (!$this->sm->has('Application'))
+            $this->sm->setService('Application', self::$instance);
+
+        return $this->sm;
     }
 
     /**
@@ -204,7 +294,56 @@ class Application implements ApplicationInterface
 
         try
         {
-            return $this->getResponse();
+            $events = $this->getEventManager();
+            $event  = $this->event;
+
+            // Define callback used to determine whether or not to short-circuit
+            $shortCircuit = function ($r) use ($event) {
+                if ($r instanceof ResponseInterface) {
+                    return true;
+                }
+                if ($event->getError()) {
+                    return true;
+                }
+                return false;
+            };
+
+            // Trigger route event
+            $result = $events->trigger(MvcEvent::EVENT_ROUTE, $event, $shortCircuit);
+            if ($result->stopped()) {
+                $response = $result->last();
+                if ($response instanceof ResponseInterface) {
+                    $event->setTarget($this);
+                    $event->setResponse($response);
+                    $events->trigger(MvcEvent::EVENT_FINISH, $event);
+                    return $response;
+                }
+                if ($event->getError()) {
+                    return $this->completeRequest($event);
+                }
+                return $event->getResponse();
+            }
+            if ($event->getError()) {
+                return $this->completeRequest($event);
+            }
+
+            // Trigger dispatch event
+            $result = $events->trigger(MvcEvent::EVENT_DISPATCH, $event, $shortCircuit);
+
+            // Complete response
+            $response = $result->last();
+            if ($response instanceof ResponseInterface) {
+                $event->setTarget($this);
+                $event->setResponse($response);
+                $events->trigger(MvcEvent::EVENT_FINISH, $event);
+                return $response;
+            }
+
+            $response = $this->getResponse();
+            $event->setResponse($response);
+            $this->completeRequest($event);
+
+            return $this;
         }
         catch(\Exception $e)
         {
@@ -241,24 +380,20 @@ class Application implements ApplicationInterface
     }
 
     /**
-     * Add default events listeners to EventManager
+     * Complete the request
      *
-     * @return void
+     * Triggers "render" and "finish" events, and returns response from
+     * event object.
+     *
+     * @param  MvcEvent $event
+     * @return Application
      */
-    protected function addDefaultListeners()
+    protected function completeRequest(MvcEvent $event)
     {
         $events = $this->getEventManager();
-
-        $listeners = $this->config()->get('listeners');
-        foreach ($listeners as $listener) {
-            if (!is_object($listener))
-                if (class_exists($listener))
-                    $listener = new $listener();
-                else
-                    $listener = $this->getServiceManager()->get($listener);
-
-            // Attach Aggregate Listener
-            $events->attach($listener);
-        }
+        $event->setTarget($this);
+        $events->trigger(MvcEvent::EVENT_RENDER, $event);
+        $events->trigger(MvcEvent::EVENT_FINISH, $event);
+        return $this;
     }
 }
