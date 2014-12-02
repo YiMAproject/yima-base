@@ -68,8 +68,11 @@ class Application implements ApplicationInterface
 
     // ...
 
+    /**
+     * @var array SetterSetup Trait
+     */
     protected $__setup_array_priority = array(
-        'service_manager_config',
+        'service_manager_config', // run service manager config first
     );
 
     /**
