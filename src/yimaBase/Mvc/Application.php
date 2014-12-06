@@ -466,6 +466,8 @@ class Application implements ApplicationInterface
                 ->setIdentifiers(array(
                     __CLASS__,
                     get_class($this),
+                    // Default Identifier
+                    'Zend\Mvc\Application',
                 ));
 
         $this->eventManager = $eventManager;
