@@ -47,7 +47,10 @@ class Application implements ApplicationInterface
         'ViewManager',
         'SendResponseListener',
 
-        'Zend\Mvc\ModuleRouteListener'
+        'Zend\Mvc\ModuleRouteListener',
+
+        'ExceptionMvcStrategyListener',
+        'SendExceptionListener',
     );
 
     // ...
@@ -263,7 +266,6 @@ class Application implements ApplicationInterface
 
         // Ci) Bootstrap Application --------------------------------------------\
         $this->bootstrap();
-
 
         $this->isInitialize = true;
 

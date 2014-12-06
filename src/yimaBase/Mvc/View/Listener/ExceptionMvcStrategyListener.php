@@ -89,15 +89,18 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
                         ->getServiceManager()
                         ->get('ViewManager')->getViewModel();
 
-                $model->setVariable('content'/*'exception'*/
+                $model->setVariable(/*'content'*/'exception'
                     , new \Exception('An error occurred during execution; please try again later.', null, $error)
                 );
+
+                $model->setVariable('display_exceptions', true);
 
                 $model->setTemplate($this->getExceptionTemplate());
 
                 $e->setResult($model);
 
-                $e->stopPropagation();
+                // Don't throw exception
+                $e->setParam('throwException', false);
 
                 break;
         }

@@ -49,7 +49,10 @@ class SendExceptionListener implements
      */
     public function throwException($e)
     {
-        if ($e->getError() && $e->getError() instanceof \Exception)
+        if ($e->getError()
+            && $e->getError() instanceof \Exception
+            && $e->getParam('throwException', true)
+        )
             throw $e->getError();
     }
 
