@@ -20,6 +20,12 @@ class Application implements ApplicationInterface
 {
     use SetterSetup;
 
+    const ERROR_CONTROLLER_CANNOT_DISPATCH = 'error-controller-cannot-dispatch';
+    const ERROR_CONTROLLER_NOT_FOUND       = 'error-controller-not-found';
+    const ERROR_CONTROLLER_INVALID         = 'error-controller-invalid';
+    const ERROR_EXCEPTION                  = 'error-exception';
+    const ERROR_ROUTER_NO_MATCH            = 'error-router-no-match';
+
     /**
      * @var self Application Instance
      */
@@ -35,7 +41,14 @@ class Application implements ApplicationInterface
      *
      * @var array [ListenerAggregateInterface]
      */
-    protected $listeners = array();
+    protected $listeners = array(
+        'RouteListener',
+        'DispatchListener',
+        'ViewManager',
+        'SendResponseListener',
+
+        'Zend\Mvc\ModuleRouteListener'
+    );
 
     // ...
 
@@ -47,7 +60,45 @@ class Application implements ApplicationInterface
     /**
      * @var array Default Service Manager Config
      */
-    protected $def_sm_config = array();
+    protected $def_sm_config = array(
+        'invokables' => [
+            'SharedEventManager'  => 'Zend\EventManager\SharedEventManager',
+
+            // Set Some Default Listeners
+            'ExceptionMvcStrategyListener' => 'yimaBase\Mvc\View\Listener\ExceptionMvcStrategyListener',
+            'SendExceptionListener'        => 'yimaBase\Mvc\Listener\SendExceptionListener',
+        ],
+        'factories'  => [
+            'EventManager'  => 'Zend\Mvc\Service\EventManagerFactory',
+
+            'Request'       => 'Zend\Mvc\Service\RequestFactory',
+            'Response'      => 'Zend\Mvc\Service\ResponseFactory',
+
+            // you can replace application startup or default ServiceManagerConfig with your own services
+            'ModuleManager' => 'Zend\Mvc\Service\ModuleManagerFactory', // default
+
+            /* used by default Module Manager
+             *
+             * > by default containing all services for serviceManager and
+             *   using during running app. Controllers, view, and more more ...
+             *
+             * > serviceListener listen for Module.php and load some config file
+             *   by execute related method and get some config.
+             *   you can register some by "service_listener_options" key
+             *
+             * > attached to eventManager by default
+             *   setDefaultConfig catched from within modules
+             *   for services that present to listener
+             */
+            'ServiceListener' => 'yimaBase\Mvc\Service\ServiceListenerFactory', // default
+        ],
+        'shared' => [
+            'EventManager' => false,
+        ],
+        'initializers' => [
+            'yimaBase\Mvc\Application\DefaultServiceInitializer'
+        ],
+    );
 
     // ...
 
@@ -82,7 +133,7 @@ class Application implements ApplicationInterface
      */
     final private function __construct(array $setterSetup)
     {
-        $this->setupFromArray($setterSetup, true);
+        $this->setupFromArray($setterSetup, false);
     }
 
     /**
@@ -105,6 +156,7 @@ class Application implements ApplicationInterface
 
     /**
      * Set Application Listeners
+     * ! Setup Method
      *
      * Listeners can be:
      * - object instance of AggregateListener
@@ -121,28 +173,15 @@ class Application implements ApplicationInterface
         if ($this->isInitialize())
             throw new \Exception('The Listeners can\'t attached when Application is Initialized.');
 
-        foreach ($listeners as $listener) {
-            if (!is_object($listener)) {
-                if (class_exists($listener))
-                    $listener = new $listener();
-                else
-                    $listener = $this->getServiceManager()->get($listener);
-            }
-
-            if (!$listener instanceof ListenerAggregateInterface)
-                throw new \Exception(sprintf(
-                    'Listener must instance of "ListenerAggregateInterface" but "%s" given.'
-                    , is_object($listener) ? get_class($listener) : gettype($listener)
-                ));
-
+        foreach ($listeners as $listener)
             $this->listeners[] = $listener;
-        }
 
         return $this;
     }
 
     /**
      * Set Service Manager Configs
+     * ! Setup Method
      *
      * @param array $smConfig Service Manager Config
      *
@@ -166,6 +205,21 @@ class Application implements ApplicationInterface
     }
 
     /**
+     * Set Application Config
+     * ! Setup Method
+     *
+     * @param array $AppConf Application Config
+     *
+     * @return $this
+     */
+    public function setApplicationConfig(array $AppConf)
+    {
+        $this->config()->setFrom(new Entity($AppConf));
+
+        return $this;
+    }
+
+    /**
      * Initialize Application
      *
      * ! Just Before Run() we must initialize app
@@ -173,6 +227,7 @@ class Application implements ApplicationInterface
      * - Add Config Initializer(s)
      *
      *
+     * @throws \Exception
      * @return $this
      */
     function initialize()
@@ -180,21 +235,35 @@ class Application implements ApplicationInterface
         if ($this->isInitialize())
             return $this;
 
-        // Ai) Attach Listeners To Events ----------------------------------------\
-        $events = $this->getEventManager();
-        foreach ($this->listeners as $listener) {
-            // Attach Aggregate Listener
-            $events->attach($listener);
-        }
-
-        // Bi) Load Modules ------------------------------------------------------\
+        // ) Load Modules ------------------------------------------------------\
         $serviceManager = $this->getServiceManager();
         /** @var ModuleManager $moduleManager */
         $moduleManager  = $serviceManager->get('ModuleManager');
         $moduleManager->loadModules();
 
+        // ) Attach Listeners To Events ----------------------------------------\
+        $events = $this->getEventManager();
+        foreach ($this->listeners as $listener) {
+            if (!is_object($listener)) {
+                if (class_exists($listener))
+                    $listener = new $listener();
+                else
+                    $listener = $this->getServiceManager()->get($listener);
+            }
+
+            if (!$listener instanceof ListenerAggregateInterface)
+                throw new \Exception(sprintf(
+                    'Listener must instance of "ListenerAggregateInterface" but "%s" given.'
+                    , is_object($listener) ? get_class($listener) : gettype($listener)
+                ));
+
+            // Attach Aggregate Listener
+            $events->attach($listener);
+        }
+
         // Ci) Bootstrap Application --------------------------------------------\
         $this->bootstrap();
+
 
         $this->isInitialize = true;
 
@@ -241,6 +310,9 @@ class Application implements ApplicationInterface
      */
     function config()
     {
+        if (!$this->configuration || !$this->configuration instanceof Entity)
+            $this->configuration = new Entity();
+
         return $this->configuration;
     }
 
@@ -255,7 +327,7 @@ class Application implements ApplicationInterface
      *
      * @return \Zend\ServiceManager\ServiceLocatorInterface
      */
-    public function getServiceManager()
+    function getServiceManager()
     {
         if (!$this->sm || !$this->sm instanceof ServiceLocatorInterface)
             $this->sm = new ServiceManager
@@ -263,8 +335,16 @@ class Application implements ApplicationInterface
                 new ConfigureService($this->def_sm_config)
             );
 
+        if (!$this->sm->has('ServiceManager'))
+            $this->sm->setService('ServiceManager', $this->sm);
+
         if (!$this->sm->has('Application'))
             $this->sm->setService('Application', self::$instance);
+
+        if (!$this->sm->has('Application.Config')) {
+            $this->sm->setService('Application.Config', $this->config()->borrow());
+            $this->sm->setAlias('ApplicationConfig', 'Application.Config');
+        }
 
         return $this->sm;
     }
@@ -274,7 +354,7 @@ class Application implements ApplicationInterface
      *
      * @return \Zend\Stdlib\RequestInterface
      */
-    public function getRequest()
+    function getRequest()
     {
         return $this->getServiceManager()
             ->get('Request');
@@ -285,7 +365,7 @@ class Application implements ApplicationInterface
      *
      * @return \Zend\Stdlib\ResponseInterface
      */
-    public function getResponse()
+    function getResponse()
     {
         return $this->getServiceManager()
             ->get('Response');
@@ -294,9 +374,10 @@ class Application implements ApplicationInterface
     /**
      * Run the application
      *
+     * @throws \Exception
      * @return Response
      */
-    public function run()
+    function run()
     {
         if (!$this->isInitialize())
             $this->initialize();
@@ -349,6 +430,7 @@ class Application implements ApplicationInterface
             }
 
             $response = $this->getResponse();
+
             $event->setResponse($response);
             $this->completeRequest($event);
 
@@ -356,7 +438,10 @@ class Application implements ApplicationInterface
         }
         catch(\Exception $e)
         {
-            $this->getEventManager()->trigger('error');
+            $this->getEventManager()->trigger(
+                MvcEvent::EVENT_ERROR
+                , $this->getMvcEvent()->setError($e)
+            );
             // with default SendExceptionListener
             // Throw accrued exception so we may don't reach this lines below
             // ...
@@ -386,6 +471,16 @@ class Application implements ApplicationInterface
         $this->eventManager = $eventManager;
 
         return $this->eventManager;
+    }
+
+    /**
+     * Get MvcEvent Object
+     *
+     * @return MvcEvent
+     */
+    public function getMvcEvent()
+    {
+       return $this->event;
     }
 
     /**
