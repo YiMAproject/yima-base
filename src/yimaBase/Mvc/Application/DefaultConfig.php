@@ -1,7 +1,7 @@
 <?php
 namespace yimaBase\Mvc\Application;
 
-use Poirot\Collection\Entity;
+use Poirot\Core\Entity;
 use Zend\ServiceManager\ServiceManager;
 
 class DefaultConfig extends Entity

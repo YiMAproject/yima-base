@@ -1,7 +1,7 @@
 <?php
 namespace yimaBase\Mvc;
 
-use Poirot\Collection\Entity;
+use Poirot\Core\Entity;
 use Poirot\Core\SetterSetup;
 use yimaBase\Mvc\Application\DefaultConfig;
 use Zend\EventManager\EventManager;
