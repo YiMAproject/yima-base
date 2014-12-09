@@ -44,13 +44,15 @@ class Application implements ApplicationInterface
     protected $listeners = array(
         'RouteListener',
         'DispatchListener',
-        'ViewManager',
         'SendResponseListener',
 
         'Zend\Mvc\ModuleRouteListener',
 
+        // ViewManager Strategies
+        'ViewManager',
         'ExceptionMvcStrategyListener',
-        'SendExceptionListener',
+
+        'ThrowExceptionListener',
     );
 
     // ...
@@ -69,7 +71,7 @@ class Application implements ApplicationInterface
 
             // Set Some Default Listeners
             'ExceptionMvcStrategyListener' => 'yimaBase\Mvc\View\Listener\ExceptionMvcStrategyListener',
-            'SendExceptionListener'        => 'yimaBase\Mvc\Listener\SendExceptionListener',
+            'ThrowExceptionListener'       => 'yimaBase\Mvc\Listener\ThrowExceptionListener',
         ],
         'factories'  => [
             'EventManager'  => 'Zend\Mvc\Service\EventManagerFactory',
@@ -444,10 +446,6 @@ class Application implements ApplicationInterface
                 MvcEvent::EVENT_ERROR
                 , $this->getMvcEvent()->setError($e)
             );
-            // with default SendExceptionListener
-            // Throw accrued exception so we may don't reach this lines below
-            // ...
-            $this->run();
         }
     }
 

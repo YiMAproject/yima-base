@@ -6,10 +6,9 @@ use Zend\EventManager\EventManagerInterface;
 use Zend\EventManager\ListenerAggregateInterface;
 use Zend\Mvc\ResponseSender\SendResponseEvent;
 
-class SendExceptionListener implements
+class ThrowExceptionListener implements
     ListenerAggregateInterface
 {
-
     /**
      * @var \Zend\Stdlib\CallbackHandler[]
      */
