@@ -11,6 +11,7 @@ use Zend\ServiceManager\ServiceLocatorInterface;
 use Zend\ServiceManager\ServiceManager;
 use Zend\View\Model\ClearableModelInterface;
 use Zend\View\Model\ModelInterface;
+use Zend\View\Model\ViewModel;
 
 /**
  * @TODO Move to ViewManager
@@ -55,7 +56,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         $this->listeners[] = $events->attach(
             MvcEvent::EVENT_ERROR,
             array($this, 'onMvcErrorInjectViewModel'),
-            -100000
+            -10000
         );
 
         $this->listeners[] = $events->attach(
@@ -134,13 +135,11 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
             // Already Have A Response As Result
             return;
 
-        $model = ($result instanceof ModelInterface)
+        $result = ($result instanceof ModelInterface)
             ? $result
-            : $e->getApplication()
-                ->getServiceManager()
-                ->get('ViewManager')->getViewModel();
+            : new ViewModel();
 
-        $model->setVariable('exception'
+        $result->setVariable('exception'
             , new \Exception(
                 'An error occurred during execution; please try again later.'
                 , null
@@ -148,15 +147,15 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
             )
         );
 
-        $model->setVariable('original_exception', $e->getError());
+        $result->setVariable('original_exception', $e->getError());
 
-        $model->setVariable('display_exceptions', (error_reporting() != 0));
+        $result->setVariable('display_exceptions', (error_reporting() != 0));
 
-        $model->setTemplate(
+        $result->setTemplate(
             $this->getExceptionTemplate($this->error)
         );
 
-        $e->setResult($model);
+        $e->setResult($result);
     }
 
     /**
