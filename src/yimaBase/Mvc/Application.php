@@ -42,6 +42,7 @@ class Application implements ApplicationInterface
      * @var array [ListenerAggregateInterface]
      */
     protected $listeners = array(
+        /* @TODO Attach Some From During System Bootstrap */
         'RouteListener',
         'DispatchListener',
         'SendResponseListener',

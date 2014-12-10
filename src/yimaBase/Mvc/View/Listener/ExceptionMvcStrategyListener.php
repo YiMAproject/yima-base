@@ -44,7 +44,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         $this->listeners[] = $events->attach(
             MvcEvent::EVENT_ERROR,
             array($this, 'onMvcErrorInjectResponse'),
-            -10000
+            10000
         );
 
         $this->listeners[] = $events->attach(
@@ -89,6 +89,8 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
     }
 
     /**
+     * Inject Status Response Code related on Exception
+     *
      * @param  MvcEvent $e
      *
      * @return void
