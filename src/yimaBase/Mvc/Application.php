@@ -2,7 +2,7 @@
 namespace yimaBase\Mvc;
 
 use Poirot\Core\Entity;
-use Poirot\Core\SetterSetup;
+use Poirot\Core\BuilderSetterTrait;
 use yimaBase\Mvc\Application\DefaultConfig;
 use Zend\EventManager\EventManager;
 use Zend\EventManager\ListenerAggregateInterface;
@@ -18,7 +18,7 @@ use Zend\Stdlib\ResponseInterface;
 
 class Application implements ApplicationInterface
 {
-    use SetterSetup;
+    use BuilderSetterTrait;
 
     const ERROR_CONTROLLER_CANNOT_DISPATCH = 'error-controller-cannot-dispatch';
     const ERROR_CONTROLLER_NOT_FOUND       = 'error-controller-not-found';
@@ -126,7 +126,7 @@ class Application implements ApplicationInterface
     // ...
 
     /**
-     * @var array SetterSetup Trait
+     * @var array BuilderSetterTrait
      */
     protected $__setup_array_priority = array(
         'service_manager_config', // run service manager config first
