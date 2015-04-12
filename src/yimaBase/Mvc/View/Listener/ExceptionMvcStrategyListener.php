@@ -9,9 +9,11 @@ use Zend\Http\PhpEnvironment\Response;
 use Zend\ServiceManager\ServiceLocatorAwareInterface;
 use Zend\ServiceManager\ServiceLocatorInterface;
 use Zend\ServiceManager\ServiceManager;
+use Zend\Stdlib\ArrayUtils;
 use Zend\View\Model\ClearableModelInterface;
 use Zend\View\Model\ModelInterface;
 use Zend\View\Model\ViewModel;
+use Zend\View\View;
 
 /**
  * @TODO Move to ViewManager
@@ -46,7 +48,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         $this->listeners[] = $events->attach(
             MvcEvent::EVENT_ERROR,
             array($this, 'onMvcErrorInjectResponse'),
-            10000
+            -1000
         );
 
         $this->listeners[] = $events->attach(
@@ -76,6 +78,9 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         if(empty($error) || !$error instanceof \Exception)
             // We do nothing without Exception
             return;
+
+        if ($e->getResult() instanceof Response)
+            $e->setResponse($e->getResult());
 
         // Set Response Status Code >>>> {
         /** @var \Zend\Http\PhpEnvironment\Response $response */
@@ -123,9 +128,14 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
             // Already Have A Response As Result
             return;
 
-        $result = ($result instanceof ModelInterface)
-            ? $result
-            : new ViewModel();
+        if ($result instanceof ModelInterface)
+            // Already Have A View Model
+            return;
+
+        if (ArrayUtils::hasStringKeys($result, true))
+            $result = new ViewModel($result);
+        else
+            $result = new ViewModel(['exception_result' => $result]);
 
         $result->setVariable('exception'
             , new \Exception(
