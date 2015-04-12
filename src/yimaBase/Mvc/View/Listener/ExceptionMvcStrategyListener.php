@@ -60,44 +60,6 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
             array($this, 'onMvcErrorInjectViewModel'),
             -10000
         );
-
-        $this->listeners[] = $events->attach(
-            MvcEvent::EVENT_ERROR,
-            array($this, 'onMvcErrorRenderOutput'),
-            -100000
-        );
-    }
-
-    /**
-     * Retrieve the exception template
-     *
-     * @return string
-     */
-    function getExceptionTemplate($e)
-    {
-        $config = $this->sm->get('Config');
-        $config = isset($config['view_manager'])
-                  && (
-                    is_array($config['view_manager'])
-                    || $config['view_manager'] instanceof \ArrayAccess
-                  )
-            ? $config['view_manager']
-            : array();
-
-        // TODO get default layout by static method or via config
-        $exceptionTemplate = 'spec/error'; //default
-
-        $exClass = get_class($e);
-        while($exClass) {
-            if (isset($config['layout_exception']) && isset($config['layout_exception'][$exClass])) {
-                $exceptionTemplate = $config['layout_exception'][$exClass];
-                break;
-            }
-
-            $exClass = get_parent_class($exClass);
-        }
-
-        return $exceptionTemplate;
     }
 
     /**
@@ -126,12 +88,24 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         if ($response->getStatusCode() === 200)
             // Change Response Code only if is Success
             $response->setStatusCode(
-                $this->getResponseCodeFromException($error)
+                $this->__getResponseCodeFromException($error)
             );
         // <<<< }
 
         $this->error = $error;
     }
+
+        protected function __getResponseCodeFromException(\Exception $e)
+        {
+            $resCode = $e->getCode();
+
+            $const = 'Zend\Http\Response' . '::STATUS_CODE_' . $resCode;
+            if (!is_numeric($resCode) || !defined($const))
+                // If Error Code Is Not Valid Response Code Choose 500
+                $resCode = 500;
+
+            return $resCode;
+        }
 
     /**
      * @param  MvcEvent $e
@@ -166,11 +140,43 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         $result->setVariable('display_exceptions', (error_reporting() != 0));
 
         $result->setTemplate(
-            $this->getExceptionTemplate($this->error)
+            $this->__getExceptionTemplate($this->error)
         );
 
         $e->setResult($result);
     }
+
+        /**
+         * Retrieve the exception template
+         *
+         * @return string
+         */
+        protected function __getExceptionTemplate($e)
+        {
+            $config = $this->sm->get('Config');
+            $config = isset($config['view_manager'])
+            && (
+                is_array($config['view_manager'])
+                || $config['view_manager'] instanceof \ArrayAccess
+            )
+                ? $config['view_manager']
+                : array();
+
+            // TODO get default layout by static method or via config
+            $exceptionTemplate = 'spec/error'; //default
+
+            $exClass = get_class($e);
+            while($exClass) {
+                if (isset($config['layout_exception']) && isset($config['layout_exception'][$exClass])) {
+                    $exceptionTemplate = $config['layout_exception'][$exClass];
+                    break;
+                }
+
+                $exClass = get_parent_class($exClass);
+            }
+
+            return $exceptionTemplate;
+        }
 
     /**
      * @param  MvcEvent $e
@@ -195,45 +201,6 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
         }
 
         $model->addChild($result);
-    }
-
-    /**
-     * @param  MvcEvent $e
-     *
-     * @return void
-     */
-    function onMvcErrorRenderOutput($e)
-    {
-        // Don't throw exception on last
-        // Used Within ThrowExceptionListener
-        $e->setParam('throwException', false);
-
-        // Trigger Events To Have Response Result
-        $events = $e->getApplication()
-            ->getEventManager();
-        $events->trigger(MvcEvent::EVENT_RENDER, $e);
-        $events->trigger(MvcEvent::EVENT_FINISH, $e);
-    }
-
-    /**
-     * Get Response Code For Exception
-     *
-     * @param $exception
-     *
-     * @return int
-     */
-    protected function getResponseCodeFromException($exception)
-    {
-        switch($exception) {
-            case $exception instanceof RouteNotFoundException:
-                $code = 404;
-                break;
-            case $exception instanceof \Exception:
-            default:
-                $code = 500;
-        }
-
-        return $code;
     }
 
     /**

@@ -46,8 +46,6 @@ class Application implements ApplicationInterface
         // ViewManager Strategies
         'ViewManager',
         'ExceptionMvcStrategyListener',
-
-        'ThrowExceptionListener',
     );
 
     // ...
@@ -66,7 +64,6 @@ class Application implements ApplicationInterface
 
             // Set Some Default Listeners
             'ExceptionMvcStrategyListener' => 'yimaBase\Mvc\View\Listener\ExceptionMvcStrategyListener',
-            'ThrowExceptionListener'       => 'yimaBase\Mvc\Listener\ThrowExceptionListener',
         ],
         'factories'  => [
             'EventManager'  => 'Zend\Mvc\Service\EventManagerFactory',
@@ -381,11 +378,34 @@ class Application implements ApplicationInterface
         if (!$this->isInitialize())
             $this->initialize();
 
+        $events = $this->getEventManager();
+        $event  = $this->event;
+
+        // Complete response
+        $self = $this;
+        $COMPLETE = function($results) use ($event, $events, $self) {
+            $response = $results->last();
+            if ($response instanceof ResponseInterface) {
+                $event->setTarget($self);
+                $event->setResponse($response);
+                $events->trigger(MvcEvent::EVENT_FINISH, $event);
+                return $response;
+            }
+
+            if ($error = $event->getError()) {
+                //kd($error);
+            }
+
+            $response = $self->getResponse();
+
+            $event->setResponse($response);
+            $self->__completeRequest($event);
+
+            return $event->getResponse();
+        };
+
         try
         {
-            $events = $this->getEventManager();
-            $event  = $this->event;
-
             // Define callback used to determine whether or not to short-circuit
             $shortCircuit = function ($r) use ($event) {
                 if ($r instanceof ResponseInterface) {
@@ -398,59 +418,20 @@ class Application implements ApplicationInterface
             };
 
             // Trigger route event
-            $result = $events->trigger(MvcEvent::EVENT_ROUTE, $event, $shortCircuit);
-            if ($result->stopped()) {
-                $response = $result->last();
-                if ($response instanceof ResponseInterface) {
-                    $event->setTarget($this);
-                    $event->setResponse($response);
-                    $events->trigger(MvcEvent::EVENT_FINISH, $event);
-                    return $response;
-                }
-                if ($event->getError()) {
-                    return $this->completeRequest($event);
-                }
-                return $event->getResponse();
-            }
-            if ($event->getError()) {
-                return $this->completeRequest($event);
+            $results = $events->trigger(MvcEvent::EVENT_ROUTE, $event, $shortCircuit);
+            if ($results->stopped()) {
+                return $COMPLETE($results);
             }
 
             // Trigger dispatch event
             $results = $events->trigger(MvcEvent::EVENT_DISPATCH, $event, $shortCircuit);
-
-            // Complete response
-            $self = $this;
-            $COMPLETE = function($results) use ($event, $events, $self) {
-                $response = $results->last();
-                if ($response instanceof ResponseInterface) {
-                    $event->setTarget($this);
-                    $event->setResponse($response);
-                    $events->trigger(MvcEvent::EVENT_FINISH, $event);
-                    return $response;
-                }
-
-                $response = $this->getResponse();
-
-                $event->setResponse($response);
-                $this->completeRequest($event);
-            };
-
-
-            return $this;
         }
         catch(\Exception $e)
         {
-            $results = $this->getEventManager()->trigger(
-                MvcEvent::EVENT_ERROR
-                , $this->getMvcEvent()->setError($e)
-            );
-
-            $return  = $results->last();
-            if (! $return) {
-                //$return = $event->getResult();
-            }
+            $results = $events->trigger(MvcEvent::EVENT_ERROR, $event->setError($e));
         }
+
+        return $COMPLETE($results);
     }
 
     /**
@@ -496,14 +477,13 @@ class Application implements ApplicationInterface
      * event object.
      *
      * @param  MvcEvent $event
-     * @return Application
      */
-    protected function completeRequest(MvcEvent $event)
+    protected function __completeRequest(MvcEvent $event)
     {
-        $events = $this->getEventManager();
         $event->setTarget($this);
+
+        $events = $this->getEventManager();
         $events->trigger(MvcEvent::EVENT_RENDER, $event);
         $events->trigger(MvcEvent::EVENT_FINISH, $event);
-        return $this;
     }
 }
