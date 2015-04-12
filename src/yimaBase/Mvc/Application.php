@@ -392,10 +392,6 @@ class Application implements ApplicationInterface
                 return $response;
             }
 
-            if ($error = $event->getError()) {
-                //kd($error);
-            }
-
             $response = $self->getResponse();
 
             $event->setResponse($response);
