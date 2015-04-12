@@ -74,15 +74,25 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
     public function getExceptionTemplate($e)
     {
         $config = $this->sm->get('Config');
-        $config = isset($config['view_manager']) && (is_array($config['view_manager']) || $config['view_manager'] instanceof ArrayAccess)
+        $config = isset($config['view_manager'])
+                  && (
+                    is_array($config['view_manager'])
+                    || $config['view_manager'] instanceof \ArrayAccess
+                  )
             ? $config['view_manager']
             : array();
 
+        // TODO get default layout by static method or via config
         $exceptionTemplate = 'spec/error'; //default
 
         $exClass = get_class($e);
-        if (isset($config['layout_exception']) && isset($config['layout_exception'][$exClass])) {
-            $exceptionTemplate = $config['layout_exception'][$exClass];
+        while($exClass) {
+            if (isset($config['layout_exception']) && isset($config['layout_exception'][$exClass])) {
+                $exceptionTemplate = $config['layout_exception'][$exClass];
+                break;
+            }
+
+            $exClass = get_parent_class($exClass);
         }
 
         return $exceptionTemplate;
