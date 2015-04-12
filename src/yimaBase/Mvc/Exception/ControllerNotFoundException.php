@@ -1,12 +1,12 @@
 <?php
 namespace yimaBase\Mvc\Exception;
 
-class RouteNotFoundException extends MvcException
+class ControllerNotFoundException extends RouteNotFoundException
 {
-    const EXCEPTION_NOT_FOUND_DEF_MESSAGE = 'Page Not Found';
+    const EXCEPTION_NOT_CONTROLLER_DEF_MESSAGE = 'Controller Not Found';
 
     public function __construct(
-        $message = self::EXCEPTION_NOT_FOUND_DEF_MESSAGE,
+        $message = self::EXCEPTION_NOT_CONTROLLER_DEF_MESSAGE,
         $code = 404,
         \Exception $previous = null
     )

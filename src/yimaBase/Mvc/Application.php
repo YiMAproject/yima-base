@@ -20,12 +20,6 @@ class Application implements ApplicationInterface
 {
     use BuilderSetterTrait;
 
-    const ERROR_CONTROLLER_CANNOT_DISPATCH = 'error-controller-cannot-dispatch';
-    const ERROR_CONTROLLER_NOT_FOUND       = 'error-controller-not-found';
-    const ERROR_CONTROLLER_INVALID         = 'error-controller-invalid';
-    const ERROR_EXCEPTION                  = 'error-exception';
-    const ERROR_ROUTER_NO_MATCH            = 'error-router-no-match';
-
     /**
      * @var self Application Instance
      */
@@ -423,30 +417,39 @@ class Application implements ApplicationInterface
             }
 
             // Trigger dispatch event
-            $result = $events->trigger(MvcEvent::EVENT_DISPATCH, $event, $shortCircuit);
+            $results = $events->trigger(MvcEvent::EVENT_DISPATCH, $event, $shortCircuit);
 
             // Complete response
-            $response = $result->last();
-            if ($response instanceof ResponseInterface) {
-                $event->setTarget($this);
+            $self = $this;
+            $COMPLETE = function($results) use ($event, $events, $self) {
+                $response = $results->last();
+                if ($response instanceof ResponseInterface) {
+                    $event->setTarget($this);
+                    $event->setResponse($response);
+                    $events->trigger(MvcEvent::EVENT_FINISH, $event);
+                    return $response;
+                }
+
+                $response = $this->getResponse();
+
                 $event->setResponse($response);
-                $events->trigger(MvcEvent::EVENT_FINISH, $event);
-                return $response;
-            }
+                $this->completeRequest($event);
+            };
 
-            $response = $this->getResponse();
-
-            $event->setResponse($response);
-            $this->completeRequest($event);
 
             return $this;
         }
         catch(\Exception $e)
         {
-            $this->getEventManager()->trigger(
+            $results = $this->getEventManager()->trigger(
                 MvcEvent::EVENT_ERROR
                 , $this->getMvcEvent()->setError($e)
             );
+
+            $return  = $results->last();
+            if (! $return) {
+                //$return = $event->getResult();
+            }
         }
     }
 

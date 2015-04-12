@@ -38,9 +38,11 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
 
     /**
      * {@inheritDoc}
+     *
      */
-    public function attach(EventManagerInterface $events)
+    function attach(EventManagerInterface $events)
     {
+        /** @var \Zend\EventManager\EventManager $events */
         $this->listeners[] = $events->attach(
             MvcEvent::EVENT_ERROR,
             array($this, 'onMvcErrorInjectResponse'),
@@ -71,7 +73,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
      *
      * @return string
      */
-    public function getExceptionTemplate($e)
+    function getExceptionTemplate($e)
     {
         $config = $this->sm->get('Config');
         $config = isset($config['view_manager'])
@@ -105,7 +107,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
      *
      * @return void
      */
-    public function onMvcErrorInjectResponse($e)
+    function onMvcErrorInjectResponse($e)
     {
         // Do nothing if no error in the event
         $error = $e->getError();
@@ -136,7 +138,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
      *
      * @return void
      */
-    public function onMvcErrorInjectViewTemplate($e)
+    function onMvcErrorInjectViewTemplate($e)
     {
         if (!$this->error)
             // We have no error detected on prev. event
@@ -175,7 +177,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
      *
      * @return void
      */
-    public function onMvcErrorInjectViewModel($e)
+    function onMvcErrorInjectViewModel($e)
     {
         $result = $e->getResult();
         if (!$result instanceof ModelInterface)
@@ -200,7 +202,7 @@ class ExceptionMvcStrategyListener extends AbstractListenerAggregate
      *
      * @return void
      */
-    public function onMvcErrorRenderOutput($e)
+    function onMvcErrorRenderOutput($e)
     {
         // Don't throw exception on last
         // Used Within ThrowExceptionListener
