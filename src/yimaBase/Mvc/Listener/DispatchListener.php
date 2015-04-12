@@ -6,7 +6,6 @@ use yimaBase\Mvc\Exception\ControllerNotFoundException;
 use yimaBase\Mvc\MvcEvent;
 use Zend\EventManager\EventManagerInterface;
 use Zend\EventManager\ListenerAggregateInterface;
-use Zend\Mvc\Exception\InvalidControllerException;
 use Zend\Mvc\InjectApplicationEventInterface;
 use Zend\Stdlib\ArrayUtils;
 

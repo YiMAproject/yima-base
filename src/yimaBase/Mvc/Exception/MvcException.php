@@ -1,7 +1,7 @@
 <?php
 namespace yimaBase\Mvc\Exception;
 
-class MvcException extends \Exception
+class MvcException extends \RuntimeException
 {
     const EXCEPTION_MVC_DEF_MESSAGE = 'Page Not Available Now.';
 
