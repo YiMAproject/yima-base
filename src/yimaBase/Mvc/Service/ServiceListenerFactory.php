@@ -32,6 +32,8 @@ class ServiceListenerFactory implements FactoryInterface
             'SendResponseListener' => 'Zend\Mvc\SendResponseListener'
         ),
         'factories' => array(
+            ## set from Application instance
+            ## @see Application
             #'Application'                    => 'Zend\Mvc\Service\ApplicationFactory',
             'Config'                         => 'Zend\Mvc\Service\ConfigFactory',
             'ControllerLoader'               => 'yimaBase\Mvc\Service\ControllerLoaderFactory',
@@ -51,8 +53,10 @@ class ServiceListenerFactory implements FactoryInterface
             'InputFilterManager'             => 'Zend\Mvc\Service\InputFilterManagerFactory',
             'MvcTranslator'                  => 'Zend\Mvc\Service\TranslatorServiceFactory',
             'PaginatorPluginManager'         => 'Zend\Mvc\Service\PaginatorPluginManagerFactory',
-            #'Request'                        => 'Zend\Mvc\Service\RequestFactory',
-            #'Response'                       => 'Zend\Mvc\Service\ResponseFactory',
+            ## get from application service manager
+            ## @see Application
+            #'Request'                       => 'Zend\Mvc\Service\RequestFactory',
+            #'Response'                      => 'Zend\Mvc\Service\ResponseFactory',
             'Router'                         => 'Zend\Mvc\Service\RouterFactory',
             'RoutePluginManager'             => 'Zend\Mvc\Service\RoutePluginManagerFactory',
             'SerializerAdapterManager'       => 'Zend\Mvc\Service\SerializerAdapterPluginManagerFactory',

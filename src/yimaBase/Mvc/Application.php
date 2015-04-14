@@ -26,34 +26,25 @@ class Application implements ApplicationInterface
     static protected $instance;
 
     /**
-     * @var boolean Is Application Initialized
-     */
-    protected $isInitialize;
-
-    /**
      * Listeners Attached To EventManager
+     * @see initialize()
      *
      * @var array [ListenerAggregateInterface]
      */
     protected $listeners = array(
-        /* @TODO Attach Some From During System Bootstrap */
         'RouteListener',
         'DispatchListener',
         'SendResponseListener',
 
         'Zend\Mvc\ModuleRouteListener',
 
+        /* @TODO Attach Some From During System Bootstrap */
         // ViewManager Strategies
         'ViewManager',
         'ExceptionMvcStrategyListener',
     );
 
     // ...
-
-    /**
-     * @var ServiceLocatorInterface ServiceManager
-     */
-    protected $sm;
 
     /**
      * @var array Default Service Manager Config
@@ -100,9 +91,9 @@ class Application implements ApplicationInterface
     // ...
 
     /**
-     * @var Entity Application Configuration
+     * @var ServiceLocatorInterface ServiceManager
      */
-    protected $configuration;
+    protected $sm;
 
     /**
      * @var EventManager
@@ -110,11 +101,28 @@ class Application implements ApplicationInterface
     protected $eventManager;
 
     /**
+     * Default Application MvcEvent
+     * used during dispatching
+     *
      * @var MvcEvent
      */
     protected $event;
 
+    /**
+     * Set As Application.Config alias ApplicationConfig
+     * on ServiceManager and can be retrieved by additional
+     * code features.
+     *
+     * @var Entity Application Configuration
+     */
+    protected $configuration;
+
     // ...
+
+    /**
+     * @var boolean Is Application Initialized
+     */
+    protected $__isInitialize;
 
     /**
      * @var array BuilderSetterTrait
@@ -136,16 +144,21 @@ class Application implements ApplicationInterface
     /**
      * Application Factory
      *
-     * @param array $configuration Application Configuration
+     * @param array $setterOpts Application Builder Setup Setter
      *
+     * @throws \Exception
      * @return Application
      */
-    static function instance(array $configuration)
+    static function instance(array $setterOpts = [])
     {
-        if (self::$instance and self::$instance instanceof self)
-            return self::$instance;
+        if (self::$instance and self::$instance instanceof self) {
+            if (!empty($setterOpts))
+                throw new \Exception('Application can only build once with setter options.');
 
-        $Application = new self($configuration);
+            return self::$instance;
+        }
+
+        $Application = new self($setterOpts);
         self::$instance = $Application;
 
         return self::$instance;
@@ -153,22 +166,23 @@ class Application implements ApplicationInterface
 
     /**
      * Set Application Listeners
-     * ! Setup Method
      *
      * Listeners can be:
      * - object instance of AggregateListener
      * - class name
      * - registered service name
      *
+     * ! Attached To Event Manager On self::initialize()
+     *
      * @param array $listeners [ListenerAggregateInterface] $listeners
      *
      * @throws \Exception
      * @return $this
      */
-    public function setListeners(array $listeners)
+    function setListeners(array $listeners)
     {
         if ($this->isInitialize())
-            throw new \Exception('The Listeners can\'t attached when Application is Initialized.');
+            throw new \Exception('The Listeners can\'t attached after Application Initialized.');
 
         foreach ($listeners as $listener)
             $this->listeners[] = $listener;
@@ -185,7 +199,7 @@ class Application implements ApplicationInterface
      * @throws \Exception
      * @return $this
      */
-    public function setServiceManagerConfig(array $smConfig)
+    function setServiceManagerConfig(array $smConfig)
     {
         if ($this->sm instanceof ServiceLocatorInterface)
             throw new \Exception(
@@ -209,7 +223,7 @@ class Application implements ApplicationInterface
      *
      * @return $this
      */
-    public function setApplicationConfig(array $AppConf)
+    function setApplicationConfig(array $AppConf)
     {
         $this->config()->setFrom(new Entity($AppConf));
 
@@ -261,7 +275,7 @@ class Application implements ApplicationInterface
         // Ci) Bootstrap Application --------------------------------------------\
         $this->bootstrap();
 
-        $this->isInitialize = true;
+        $this->__isInitialize = true;
 
         return $this;
     }
@@ -296,7 +310,7 @@ class Application implements ApplicationInterface
      */
     function isInitialize()
     {
-        return $this->isInitialize;
+        return $this->__isInitialize;
     }
 
     /**
@@ -437,7 +451,7 @@ class Application implements ApplicationInterface
      *
      * @return EventManagerInterface
      */
-    public function getEventManager()
+    function getEventManager()
     {
         if ($this->eventManager)
             return $this->eventManager;
@@ -461,7 +475,7 @@ class Application implements ApplicationInterface
      *
      * @return MvcEvent
      */
-    public function getMvcEvent()
+    function getMvcEvent()
     {
        return $this->event;
     }
