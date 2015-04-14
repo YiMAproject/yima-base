@@ -290,10 +290,13 @@ class Application implements ApplicationInterface
     {
         $serviceManager = $this->getServiceManager();
 
+        $application = $this->getServiceManager()
+            ->get('Application');
+
         // Setup MVC Event
         $this->event = $event  = new MvcEvent();
-        $event->setTarget($this);
-        $event->setApplication($this)
+        $event->setTarget($application);
+        $event->setApplication($application)
             ->setRequest($this->getRequest())
             ->setResponse($this->getResponse())
             ->setRouter($serviceManager->get('Router'));
