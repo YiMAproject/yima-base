@@ -225,7 +225,7 @@ class Application implements ApplicationInterface
      */
     function setApplicationConfig(array $AppConf)
     {
-        $this->config()->setFrom(new Entity($AppConf));
+        $this->config()->from(new Entity($AppConf));
 
         return $this;
     }
