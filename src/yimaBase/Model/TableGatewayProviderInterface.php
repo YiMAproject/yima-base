@@ -2,10 +2,6 @@
 namespace yimaBase\Model;
 use Zend\Db\TableGateway\TableGateway;
 
-/**
- * Interface TableGatewayProviderInterface
- * @package yimaBase\Model
- */
 interface TableGatewayProviderInterface
 {
     /**

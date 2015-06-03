@@ -244,14 +244,12 @@ class DmsFeature extends AbstractFeature
      */
     public function postSelect(StatementInterface $statement, ResultInterface $result, ResultSetInterface $resultSet)
     {
-        if ($this->getDmsColumns()) {
+        if ($this->getDmsColumns())
             // We have used the query with presented Predefined DMS Columns
             // Nothing to do
             return;
-        }
 
         $storedValues = $this->getStoredValues();
-
         $pkColumn     = $storedValues['pk'];
 
         $totalResultSet = array();

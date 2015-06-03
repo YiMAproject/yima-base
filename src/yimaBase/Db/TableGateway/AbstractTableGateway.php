@@ -37,7 +37,7 @@ abstract class AbstractTableGateway extends ZendTableAbstract implements
     	// init Table, adding features, .....
     	$this->init();
 
-        // all features tableGateway reset to $this from initialize()
+        // all features::$tableGateway set to $this(object) from initialize()
     	$this->initialize();
 
         $this->postInit();

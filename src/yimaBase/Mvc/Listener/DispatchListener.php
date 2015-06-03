@@ -80,7 +80,10 @@ class DispatchListener implements ListenerAggregateInterface
         $controllerLoader = $application->getServiceManager()->get('ControllerLoader');
 
         if (!$controllerLoader->has($controllerName)) {
-            throw new ControllerNotFoundException();
+            throw new ControllerNotFoundException(sprintf(
+                'Controller "%s" not found.'
+                , $controllerName
+            ));
         }
 
         $controller = $controllerLoader->get($controllerName);
