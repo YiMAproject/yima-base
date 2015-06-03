@@ -1,6 +1,7 @@
 <?php
 namespace yimaBase\Db\TableGateway\Feature;
 
+use Poirot\Core\Interfaces\iDataSetConveyor;
 use yimaBase\Db\TableGateway\Dms as DmsTable;
 use Zend\Db\Adapter\Driver\ResultInterface;
 use Zend\Db\Adapter\Driver\StatementInterface;
@@ -121,6 +122,13 @@ class DmsFeature extends AbstractFeature
 	{
         if (!$this->getDmsColumns()) {
             // we have not any predefined dms columns
+            // - look over dms table that which data is provided for this entity of table
+            //   as extra data on dmsTable
+            // - the query return left joined results of table rows included dms data as
+            //   field and content
+            // - later on postSelect we will filter data
+
+            // NOTE: not defined dms columns bring down the performance and resources
 
             /*
             SELECT mtp . * , dms.field as dms__field, dms.content as dms__content
@@ -135,38 +143,41 @@ class DmsFeature extends AbstractFeature
             $tablePrimKey = $this->getPrimaryKey($tableGateway);
 
             $expression = new Expression(
-                "$sname.foreign_key = ?.?"
-                ,array(
+                "$sname.foreign_key = ?.?
+                AND $sname.model = ?
+                "
+                , [
                     $tableName, $tablePrimKey,
-                )
-                ,array(
+                    get_class($tableGateway),
+                ]
+                , [
                     Expression::TYPE_IDENTIFIER,
                     Expression::TYPE_IDENTIFIER
-                )
+                ]
             );
 
             $select->join(
-                array($sname => $joinTable)//join table name
+                [$sname => $joinTable]//join table name
                 ,$expression //conditions
-                ,array(
+                ,[
                     'dms__content' => 'content',
                     'dms__field'   => 'field',
-                )
+                ]
                 ,'left'
             );
 
             $rawState  = $select->getRawState();
             $columns   = $rawState['columns'];
-            if (!in_array('*', $columns) && !in_array($tablePrimKey, $columns) ) {
+            if (!in_array('*', $columns) && !in_array($tablePrimKey, $columns))
                 // We need primary key for postSelect
                 array_unshift($columns, $tablePrimKey);
-            }
+
             // used in post select
-            $this->setStoredValues(array('pk' => $tablePrimKey, 'columns' => $rawState['columns']));
+            $this->setStoredValues(['pk' => $tablePrimKey, 'columns' => $rawState['columns']]);
 
             $select->columns($columns);
 
-            return;
+            return; // ===================================================================================
         }
 
 		/*
@@ -185,10 +196,9 @@ class DmsFeature extends AbstractFeature
 		$vColumns  = array_values($columns);
 		$dmsFields = $this->getDmsColumns();
 		
-		if (! array_intersect($vColumns, $dmsFields) && !in_array('*',$vColumns) ) {
+		if (! array_intersect($vColumns, $dmsFields) && !in_array('*',$vColumns) )
             // We don't have any DMS columns on SELECT expression
 			return;
-		}
         // ... }
 
 		$tableGateway = $this->tableGateway; // Base TableGateway That This Feature Bind to
@@ -237,10 +247,14 @@ class DmsFeature extends AbstractFeature
 	}
 
     /**
+     * Note: Filter unstructured data from prePost when we don't have
+     *       dmsColumns defined
      *
      * @param StatementInterface $statement
      * @param ResultInterface $result
      * @param ResultSetInterface $resultSet
+     *
+     * @throws \Exception
      */
     public function postSelect(StatementInterface $statement, ResultInterface $result, ResultSetInterface $resultSet)
     {
@@ -253,7 +267,16 @@ class DmsFeature extends AbstractFeature
         $pkColumn     = $storedValues['pk'];
 
         $totalResultSet = array();
-        foreach($resultSet as $rc) {
+        foreach($resultSet as $rc)
+        {
+            if (!$rc instanceof iDataSetConveyor)
+                throw new \Exception(sprintf(
+                    'ResultSet must instance of iDataSetConveyor to DmsFeature interact to. "%s" given.'
+                    , get_class($rc)
+                ));
+
+            $rc = $rc->toArray();
+
             $pk = $rc[$pkColumn]; // get pk column value
             foreach ($rc as $c => $v) {
                 // iterate trough result containing duplicated rows because of join over dms values
@@ -265,9 +288,9 @@ class DmsFeature extends AbstractFeature
                     && (!in_array($pkColumn, $storedValues['columns'])
                         && !in_array('*', $storedValues['columns'])
                     )
-                ) {
+                )
                     continue;
-                }
+
 
                 $totalResultSet[$pk][$c] = $v;
             }
