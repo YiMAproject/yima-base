@@ -386,29 +386,36 @@ class DmsFeature extends AbstractFeature
 	{
 		// reset stored values
 		$this->setStoredValues();
-	
-		// dar ebtedaa field haaii ke marboot be dms haa nistand dar jadval asli update shavad
+
+        // Looking on query, the columns of dms table must stored and perform action on postUpdate:
 		$rawState  = $update->getRawState();
 		$dataset   = $rawState['set'];
-		
-		$tblColumns = array_diff_key($dataset, array_flip($this->getDmsColumns()));
-		
+
+        // Find columns belong to base table (without dms):
+        if ($this->getDmsColumns())
+            $columns = array_diff_key($dataset, array_flip($this->getDmsColumns()));
+        elseif ($this->tableGateway->columns)
+            $columns = array_intersect_key($dataset, array_flip($this->tableGateway->columns));
+        else
+            throw new \Exception('Both TableGateway Columns And Dms Columns Are Empty, Update Can`t Happen.');
+
 		// store dmsColumns for postUpdate
-		$storedData           = array_diff_key($dataset, $tblColumns);
+		$storedData           = array_diff_key($dataset, $columns);
 		$storedData['@where'] = clone $update->where;
-		
-		if (empty($tblColumns)) {
-			// reson: Column not found: 1054 Unknown column 'note' in 'field list',exp. *note is dms field
+
+		if (empty($columns)) {
+			// reson: Column not found: 1054 Unknown column 'note' in 'field list'
+            // exp. *note is dms field
 			$tableGateway = $this->tableGateway;
 			$tablePrimKey = $this->getPrimaryKey($tableGateway);
-			$tblColumns   = array($tablePrimKey=>0);	
+			$columns   = [$tablePrimKey => 0];
 				
 			// we don't want change anything in base table
 			// store where part and change it to nothing happend.
 			$update->where(array('1 = ?' => 0));
 		}
 		
-		$update->set($tblColumns);
+		$update->set($columns);
 		$this->setStoredValues($storedData);
 	}
 	
@@ -419,25 +426,24 @@ class DmsFeature extends AbstractFeature
 		$where = $storedValues['@where'];
 		unset($storedValues['@where']);
 	
-		if (empty($storedValues)) {
+		if (empty($storedValues))
 			// we dont have any dms field
 			return;
-		}
-		
+
 		$tableGateway = $this->tableGateway;
 	
 		# we dont want use tableGateway baraaie inke feature haa raa niaaz nadaarim
-		# be alave inke hamin feature rooie table hatman hast va az select e in estefaade mikonim, kaahesh performance
+		# be alave inke hamin feature rooie table hatman hast va az select e in estefaade mikonim,
+        # kaahesh performance
 		$sql       = $tableGateway->getSql();
 		$select    = $sql->select()->where($where);
 		$statement = $sql->prepareStatementForSqlObject($select);
 		$rows      = $statement->execute();
 		
-		if (! count($rows) > 0) {
+		if (! count($rows) > 0)
 			// we don't have any update match
 			return;
-		}
-		
+
 		// get query data
 		$primaryKey = $this->getPrimaryKey($tableGateway);
 		$model      = get_class($tableGateway);
