@@ -141,13 +141,15 @@ class DmsFeature extends AbstractFeature
 
             // NOTE: not defined dms columns bring down the performance and resources
 
-            $dmsColumns = array_diff($columns, $tableGateway->getColumns());
-            if ($dmsColumns) {
-                // we`ve not need all dms columns from table, request specific columns
-                // that are not default table columns and assumed as dms
-                // select user_id, field_on_dms, ....
-                $this->setDmsColumns($dmsColumns);
-                return $this->preSelect($select);
+            if (!in_array('*', $columns)) {
+                $dmsColumns = array_diff($columns, $tableGateway->getColumns());
+                if ($dmsColumns) {
+                    // we`ve not need all dms columns from table, request specific columns
+                    // that are not default table columns and assumed as dms
+                    // select user_id, field_on_dms, ....
+                    $this->setDmsColumns($dmsColumns);
+                    return $this->preSelect($select);
+                }
             }
 
             /*
