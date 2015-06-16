@@ -120,6 +120,17 @@ class DmsFeature extends AbstractFeature
 	
 	public function preSelect(Select $select)
 	{
+        $sname = 'dms';
+        $tableGateway = $this->tableGateway;
+        $tableName    = $tableGateway->getTable();
+        $tablePrimKey = $this->getPrimaryKey($tableGateway);
+
+        $rawState  = $select->getRawState();
+        $columns   = $rawState['columns'];
+        if (!in_array('*', $columns) && !in_array($tablePrimKey, $columns))
+            // We need primary key for postSelect
+            array_unshift($columns, $tablePrimKey);
+
         if (!$this->getDmsColumns()) {
             // we have not any predefined dms columns
             // - look over dms table that which data is provided for this entity of table
@@ -130,17 +141,21 @@ class DmsFeature extends AbstractFeature
 
             // NOTE: not defined dms columns bring down the performance and resources
 
+            $dmsColumns = array_diff($columns, $tableGateway->getColumns());
+            if ($dmsColumns) {
+                // we`ve not need all dms columns from table, request specific columns
+                // that are not default table columns and assumed as dms
+                // select user_id, field_on_dms, ....
+                $this->setDmsColumns($dmsColumns);
+                return $this->preSelect($select);
+            }
+
             /*
             SELECT mtp . * , dms.field as dms__field, dms.content as dms__content
             FROM  `typopages_page` AS mtp
             LEFT JOIN  `yimabase_dms` AS dms ON dms.foreign_key = mtp.page_id
             */
             $joinTable = $this->getDmsTable()->table;// get name of dms table
-
-            $sname = 'dms';
-            $tableGateway = $this->tableGateway;
-            $tableName    = $tableGateway->getTable();
-            $tablePrimKey = $this->getPrimaryKey($tableGateway);
 
             $expression = new Expression(
                 "$sname.foreign_key = ?.?
@@ -166,12 +181,6 @@ class DmsFeature extends AbstractFeature
                 ,'left'
             );
 
-            $rawState  = $select->getRawState();
-            $columns   = $rawState['columns'];
-            if (!in_array('*', $columns) && !in_array($tablePrimKey, $columns))
-                // We need primary key for postSelect
-                array_unshift($columns, $tablePrimKey);
-
             // used in post select
             $this->setStoredValues(['pk' => $tablePrimKey, 'columns' => $rawState['columns']]);
 
@@ -191,20 +200,15 @@ class DmsFeature extends AbstractFeature
 		
 		// Looking at SELECT requested COLUMNS for any DMS Columns ... {
         #  SELECT [column] FROM ...
-		$rawState  = $select->getRawState();
-		$columns   = $rawState['columns'];
 		$vColumns  = array_values($columns);
 		$dmsFields = $this->getDmsColumns();
 		
-		if (! array_intersect($vColumns, $dmsFields) && !in_array('*',$vColumns) )
+		if (! array_intersect($vColumns, $dmsFields) && !in_array('*', $vColumns) )
             // We don't have any DMS columns on SELECT expression
 			return;
         // ... }
 
-		$tableGateway = $this->tableGateway; // Base TableGateway That This Feature Bind to
-		$tableName    = $tableGateway->getTable();
 		$tableClass   = get_class($tableGateway);
-
 		$tablePrimKey = $this->getPrimaryKey($tableGateway);
 
 		foreach ($this->getDmsColumns() as $dc) {
@@ -244,6 +248,30 @@ class DmsFeature extends AbstractFeature
 		}
 		
 		$select->columns($columns);
+
+        // Filter dms columns on where clause:
+        // SELECT `user`.`_user_id` AS `_user_id`, `Dms__location`.`content` AS `location`
+        // FROM `user` LEFT JOIN `user_dms` AS `Dms__location` ON ...
+        // WHERE `nation_code` = '0322358078' AND location = '1' <====== sql can't realize this
+        // We use this instead:
+        // Dms__location.content = '1'
+
+        /** @var \Zend\Db\Sql\Where $where */
+        $where      = $rawState['where'];
+        foreach ($where->getPredicates() as $pr)
+        {
+            /** @var \Zend\Db\Sql\Predicate\Operator $predicate */
+            $predicate = $pr[1];
+            if (method_exists($predicate, 'getLeft')) {
+                $operand = $predicate->getLeft();
+                if (in_array($operand, $this->getDmsColumns()))
+                    $predicate->setLeft('Dms__'.$operand.'.content');
+            } elseif (method_exists($predicate, 'getIdentifier')) {
+                $operand = $predicate->getIdentifier();
+                if (in_array($operand, $this->getDmsColumns()))
+                    $predicate->setIdentifier('Dms__'.$operand.'.content');
+            }
+        }
 	}
 
     /**

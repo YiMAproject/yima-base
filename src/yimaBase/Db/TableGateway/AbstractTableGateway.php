@@ -114,6 +114,7 @@ abstract class AbstractTableGateway extends ZendTableAbstract implements
         $this->featureSet->apply('preSelect', array($select));
 
         // prepare and execute
+        /** @var \Zend\Db\Adapter\Driver\Pdo\Statement $statement */
         $statement = $this->sql->prepareStatementForSqlObject($select);
         $result = $statement->execute();
 
